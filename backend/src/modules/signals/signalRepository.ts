@@ -10,16 +10,35 @@ export class SignalRepository {
     marketScore: number;
     whaleScore: number;
     executionScore: number;
+    entrySpread: number;
+    isLateSignal: boolean;
+    entryDelayMs: number;
     dataConfidence: string;
     confidence: string;
     reason: string;
     status: string;
   }) {
     const rows = await query<{ id: string }>(
-      `INSERT INTO signals (market_id, side, action, current_price, market_score, whale_score, execution_score, data_confidence, confidence, reason, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      `INSERT INTO signals
+       (market_id, side, action, current_price, market_score, whale_score, execution_score, entry_spread, is_late_signal, entry_delay_ms, data_confidence, confidence, reason, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
        RETURNING id`,
-      [input.marketId, input.side, input.action, input.currentPrice, input.marketScore, input.whaleScore, input.executionScore, input.dataConfidence, input.confidence, input.reason, input.status],
+      [
+        input.marketId,
+        input.side,
+        input.action,
+        input.currentPrice,
+        input.marketScore,
+        input.whaleScore,
+        input.executionScore,
+        input.entrySpread,
+        input.isLateSignal,
+        input.entryDelayMs,
+        input.dataConfidence,
+        input.confidence,
+        input.reason,
+        input.status,
+      ],
     );
     const signalId = Number(rows[0].id);
     await this.createExitRules(signalId, input.currentPrice);

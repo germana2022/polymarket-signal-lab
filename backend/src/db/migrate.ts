@@ -11,6 +11,18 @@ async function main() {
   await pool.query(sql);
   await pool.query(`
     ALTER TABLE signals
+    ADD COLUMN IF NOT EXISTS entry_spread NUMERIC;
+  `);
+  await pool.query(`
+    ALTER TABLE signals
+    ADD COLUMN IF NOT EXISTS is_late_signal BOOLEAN DEFAULT FALSE;
+  `);
+  await pool.query(`
+    ALTER TABLE signals
+    ADD COLUMN IF NOT EXISTS entry_delay_ms BIGINT DEFAULT 0;
+  `);
+  await pool.query(`
+    ALTER TABLE signals
     ADD COLUMN IF NOT EXISTS data_confidence TEXT NOT NULL DEFAULT 'MEDIUM';
   `);
   await pool.query(`

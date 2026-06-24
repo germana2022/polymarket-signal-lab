@@ -2,6 +2,7 @@ import { MarketRepository } from '../markets/marketRepository.js';
 import { WalletRepository } from '../wallets/walletRepository.js';
 import { SignalRepository } from './signalRepository.js';
 import { calculateExecutionScore, calculateMarketScore, calculateWhaleScore, classifyBuyAction, confidenceFromScores, dataConfidenceFromScores } from '../scoring/scoringService.js';
+import { strategyConfig } from '../../config/strategy.js';
 
 export class BuyDecisionEngine {
   constructor(
@@ -21,6 +22,11 @@ export class BuyDecisionEngine {
       const trades: any[] = await this.wallets.getConfirmingTrades(market.id, 'YES');
       const qualityTrades = trades.filter((t) => Number(t.wallet_score) >= 70 && Number(t.notional_value) >= 1000);
       const walletsConfirming = new Set(qualityTrades.map((t) => t.wallet_address)).size;
+      const firstTradeTimestamp = qualityTrades.length ? qualityTrades.reduce((oldest, trade) => {
+        const ts = new Date(trade.timestamp).getTime();
+        return Number.isNaN(ts) ? oldest : Math.min(oldest, ts);
+      }, Number.MAX_SAFE_INTEGER) : Date.now();
+      const entryDelayMs = Number.isFinite(firstTradeTimestamp) ? Date.now() - firstTradeTimestamp : 0;
 
       const avgWalletScore = qualityTrades.length
         ? qualityTrades.reduce((sum, t) => sum + Number(t.wallet_score), 0) / qualityTrades.length
@@ -57,6 +63,7 @@ export class BuyDecisionEngine {
 
       const confidence = confidenceFromScores(marketScore, whaleScore, executionScore);
       const dataConfidence = dataConfidenceFromScores(marketScore, whaleScore, executionScore);
+      const isLateSignal = avgWhaleEntry > 0 && Number(snapshot.price) / avgWhaleEntry - 1 > strategyConfig.buyRules.maxPriceChase;
       const finalAction = dataConfidence === 'LOW' && action === 'STRONG_BUY_WATCH' ? 'WATCH' : action;
       const status = finalAction === 'WATCH' ? 'WATCHING' : 'BUY_WATCH';
       const reason = [
@@ -78,6 +85,9 @@ export class BuyDecisionEngine {
         confidence,
         dataConfidence,
         reason,
+        entrySpread: Number(snapshot.spread ?? 0),
+        isLateSignal,
+        entryDelayMs,
         status,
       });
       created.push(id);

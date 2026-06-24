@@ -54,14 +54,39 @@ export class PaperTradingRepository {
        )
        SELECT
          COUNT(*)::int AS total_trades,
-         COUNT(*) FILTER (WHERE status='CLOSED')::int AS closed_trades,
-         COALESCE(SUM(pnl),0)::float AS total_pnl,
-         COALESCE(AVG(roi),0)::float AS avg_roi,
-         COALESCE(AVG(CASE WHEN status='CLOSED' THEN pnl END),0)::float AS expectancy,
+         COUNT(*) FILTER (WHERE pt.status='CLOSED')::int AS closed_trades,
+         COUNT(*) FILTER (WHERE pt.status='OPEN')::int AS open_trades,
+         COALESCE(SUM(pt.pnl) FILTER (WHERE pt.status='CLOSED'),0)::float AS total_pnl,
+         COALESCE(AVG(pt.roi) FILTER (WHERE pt.status='CLOSED'),0)::float AS avg_roi,
+         COALESCE(AVG(pt.pnl) FILTER (WHERE pt.status='CLOSED'),0)::float AS expectancy,
+         COALESCE(
+           SUM(CASE WHEN pt.pnl > 0 THEN pt.pnl ELSE 0 END) FILTER (WHERE pt.status='CLOSED'),
+           0
+         ) / NULLIF(ABS(SUM(CASE WHEN pt.pnl < 0 THEN pt.pnl ELSE 0 END) FILTER (WHERE pt.status='CLOSED')), 0)::float AS profit_factor,
          COALESCE((SELECT MAX(running_peak - cumulative_pnl) FROM equity_peak), 0)::float AS max_drawdown,
-         COALESCE(AVG(CASE WHEN pnl > 0 THEN 1 ELSE 0 END),0)::float AS win_rate
-       FROM paper_trades`,
+         COALESCE(AVG(CASE WHEN pt.pnl > 0 THEN 1 ELSE 0 END) FILTER (WHERE pt.status='CLOSED'),0)::float AS win_rate,
+         COALESCE(AVG(ms.spread),0)::float AS avg_spread,
+         COALESCE(AVG(CASE WHEN s.is_late_signal THEN 1 ELSE 0 END),0)::float AS late_signal_ratio,
+         COALESCE(AVG(COALESCE(s.entry_delay_ms, 0)::float),0)::float AS avg_entry_delay_ms,
+         COUNT(DISTINCT s.id)::int AS total_signals
+       FROM paper_trades pt
+       LEFT JOIN signals s ON s.id = pt.signal_id
+       LEFT JOIN LATERAL (
+         SELECT spread FROM market_snapshots ms
+           WHERE ms.market_id = s.market_id
+           ORDER BY ms.timestamp DESC
+           LIMIT 1
+       ) ms ON TRUE`,
     );
     return rows[0];
+  }
+
+  async openTradesWithSignals() {
+    return query(
+      `SELECT pt.id AS paper_trade_id, pt.signal_id, pt.entry_price, s.market_id, s.side, s.status AS signal_status
+       FROM paper_trades pt
+       JOIN signals s ON s.id = pt.signal_id
+       WHERE pt.status='OPEN'`,
+    );
   }
 }
