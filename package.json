@@ -1,0 +1,12 @@
+{
+  "name": "polymarket-signal-lab-fase1",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:worker": "npm --prefix backend run worker",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "test": "npm --prefix backend test",
+    "zip": "cd .. && zip -r polymarket-signal-lab-fase1.zip polymarket-signal-lab-fase1"
+  }
+}
